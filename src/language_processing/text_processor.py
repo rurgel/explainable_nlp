@@ -28,7 +28,7 @@ class TextProcessor:
         split_sentences: Splits the text into a list of sentences.
         model_tokenizer: Tokenizes the sentences using a pre-trained
             language model.
-        remove_stopwords: Removes stopwords from a list of tokens.
+        validate_not_stopwords: Checks if the tokens are not stopwords.
         aggregate_tokens: Combines split tokens by ## and also
             aggregates the respective attention weights.
 
@@ -107,6 +107,10 @@ class TextProcessor:
                 padding=True,
                 max_length=512,
             )
+            tokens = self.tokens(input)
+            input["attention_mask"] = torch.tensor(
+                self.validate_not_stopwords(tokens)
+            ).unsqueeze(0)
             for key, value in input.items():
                 if key in inputs:
                     inputs[key] = torch.cat((inputs[key], value), dim=1)
@@ -144,18 +148,18 @@ class TextProcessor:
         _, _, attentions = self._model(**inputs)
         return torch.stack(attentions)
 
-    def remove_stopwords(self, tokens: List[str]) -> List[str]:
+    def validate_not_stopwords(self, tokens: List[str]) -> List[str]:
         """
-        Remove stopwords from a list of tokens.
+        Check if the tokens are not stopwords.
 
         Args:
             tokens (List[str]): The list of tokens.
 
         Returns:
-            The list of tokens with stopwords removed.
+            A list of tokens that are not stopwords.
         """
         stopwords = nltk.corpus.stopwords.words(self.language)
-        return [tk for tk in tokens if tk.lower() not in stopwords]
+        return [tk.lower() not in stopwords for tk in tokens]
 
     @property
     def language(self) -> str:
@@ -186,6 +190,7 @@ class TextProcessor:
         for idx in np.where([tk.startswith("##") for tk in tokens])[0][::-1]:
             tokens[idx - 1] += tokens[idx].strip("##")
             tokens.pop(idx)
+            self._sentences_ids.pop(idx)
             pos = [x for x in range(attentions.shape[-1]) if x != idx]
             attentions[
                 :, :, :, (idx - 1):(idx + 1), (idx - 1):(idx + 1)
