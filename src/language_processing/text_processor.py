@@ -1,6 +1,7 @@
 import itertools
 from typing import List, Tuple
 
+import re
 import numpy as np
 import nltk
 import torch
@@ -29,6 +30,7 @@ class TextProcessor:
         model_tokenizer: Tokenizes the sentences using a pre-trained
             language model.
         validate_not_stopwords: Checks if the tokens are not stopwords.
+        validate_any_alphanumeric: Checks if the tokens alphanumeric.
         aggregate_tokens: Combines split tokens by ## and also
             aggregates the respective attention weights.
 
@@ -108,9 +110,16 @@ class TextProcessor:
                 max_length=512,
             )
             tokens = self.tokens(input)
-            input["attention_mask"] = torch.tensor(
-                self.validate_not_stopwords(tokens)
-            ).unsqueeze(0)
+            # Check if no stopwords or alphanumeric in tokens
+            att_mask = [
+                all(bool_vars)
+                for bool_vars in zip(
+                    self.validate_not_stopwords(tokens),
+                    self.validate_any_alphanumeric(tokens),
+                )
+            ]
+            input["attention_mask"] = torch.tensor(att_mask).unsqueeze(0)
+
             for key, value in input.items():
                 if key in inputs:
                     inputs[key] = torch.cat((inputs[key], value), dim=1)
@@ -161,6 +170,18 @@ class TextProcessor:
         stopwords = nltk.corpus.stopwords.words(self.language)
         return [tk.lower() not in stopwords for tk in tokens]
 
+    def validate_any_alphanumeric(self, tokens: List[str]) -> List[str]:
+        """
+        Check if the tokens contains any alphanumerical character.
+
+        Args:
+            tokens (List[str]): The list of tokens.
+
+        Returns:
+            A list of tokens that are not stopwords.
+        """
+        return [bool(re.search(r"\w", tk)) for tk in tokens]
+
     @property
     def language(self) -> str:
         """
@@ -195,15 +216,15 @@ class TextProcessor:
             pos = [x for x in range(attention.shape[-1]) if x != idx]
 
             # Get the window of the attention tensor
-            window = attention[:, :, :, st_idx : idx + 1, st_idx : idx + 1]
+            window = attention[:, :, :, st_idx:idx + 1, st_idx:idx + 1]
 
-            # Find the maximum value along the 3rd dimension of the window
+            # Find the maximum value along the window 3rd dimension
             max_vals, _ = torch.max(window, dim=3, keepdim=True)
 
-            # Update the window of the attention tensor with the max values
-            attention[:, :, :, st_idx : idx + 1, st_idx : idx + 1] = max_vals
+            # Update the window of the attention tensor with max values
+            attention[:, :, :, st_idx:idx + 1, st_idx:idx + 1] = max_vals
 
-            # Remove the rows and columns corresponding to the split tokens
+            # Remove the rows and columns corresponding to split tokens
             attention = attention[:, :, :, pos, :][:, :, :, :, pos]
         return tokens, attention
 
