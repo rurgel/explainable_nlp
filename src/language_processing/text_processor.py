@@ -172,7 +172,7 @@ class TextProcessor:
         return self._LANGUAGE_DICT.get(self._language_abbrv, "portuguese")
 
     def aggregate_tokens(
-        self, tokens: List[str], attentions: torch.Tensor
+        self, tokens: List[str], attention: torch.Tensor
     ) -> Tuple[List[str], torch.Tensor]:
         """
         Aggregate the attention weights of tokens that were split by
@@ -188,23 +188,24 @@ class TextProcessor:
             aggregated.
         """
         for idx in np.where([tk.startswith("##") for tk in tokens])[0][::-1]:
-            tokens[idx - 1] += tokens[idx].strip("##")
+            st_idx = idx - 1
+
+            tokens[st_idx] += tokens[idx].strip("##")
             tokens.pop(idx)
-            self._sentences_ids.pop(idx)
-            pos = [x for x in range(attentions.shape[-1]) if x != idx]
-            attentions[
-                :, :, :, (idx - 1):(idx + 1), (idx - 1):(idx + 1)
-            ] = torch.max(
-                attentions[
-                    :, :, :, (idx - 1):(idx + 1), (idx - 1):(idx + 1)
-                ],
-                3,
-                keepdim=True,
-            )[
-                0
-            ]
-            attentions = attentions[:, :, :, pos, :][:, :, :, :, pos]
-        return tokens, attentions
+            pos = [x for x in range(attention.shape[-1]) if x != idx]
+
+            # Get the window of the attention tensor
+            window = attention[:, :, :, st_idx : idx + 1, st_idx : idx + 1]
+
+            # Find the maximum value along the 3rd dimension of the window
+            max_vals, _ = torch.max(window, dim=3, keepdim=True)
+
+            # Update the window of the attention tensor with the max values
+            attention[:, :, :, st_idx : idx + 1, st_idx : idx + 1] = max_vals
+
+            # Remove the rows and columns corresponding to the split tokens
+            attention = attention[:, :, :, pos, :][:, :, :, :, pos]
+        return tokens, attention
 
 
 if __name__ == "__main__":
