@@ -1,6 +1,7 @@
 import itertools
-from typing import List
+from typing import List, Tuple
 
+import numpy as np
 import nltk
 import torch
 from transformers import AutoTokenizer, AutoModelForMaskedLM
@@ -28,6 +29,8 @@ class TextProcessor:
         model_tokenizer: Tokenizes the sentences using a pre-trained
             language model.
         remove_stopwords: Removes stopwords from a list of tokens.
+        aggregate_tokens: Combines split tokens by ## and also
+            aggregates the respective attention weights.
 
     Properties:
         language: Returns the full name of the language of the text.
@@ -164,8 +167,43 @@ class TextProcessor:
         """
         return self._LANGUAGE_DICT.get(self._language_abbrv, "portuguese")
 
+    def aggregate_tokens(
+        self, tokens: List[str], attentions: torch.Tensor
+    ) -> Tuple[List[str], torch.Tensor]:
+        """
+        Aggregate the attention weights of tokens that were split by
+        the tokenizer.
+
+        Args:
+            tokens (List[str]): The list of tokens.
+            attentions (torch.Tensor): The attention weights.
+
+        Returns:
+            A tuple containing the list of tokens with the split tokens
+            aggregated, and the attention weights with the split tokens
+            aggregated.
+        """
+        for idx in np.where([tk.startswith("##") for tk in tokens])[0][::-1]:
+            tokens[idx - 1] += tokens[idx].strip("##")
+            tokens.pop(idx)
+            pos = [x for x in range(attentions.shape[-1]) if x != idx]
+            attentions[
+                :, :, :, (idx - 1):(idx + 1), (idx - 1):(idx + 1)
+            ] = torch.max(
+                attentions[
+                    :, :, :, (idx - 1):(idx + 1), (idx - 1):(idx + 1)
+                ],
+                3,
+                keepdim=True,
+            )[
+                0
+            ]
+            attentions = attentions[:, :, :, pos, :][:, :, :, :, pos]
+        return tokens, attentions
+
 
 if __name__ == "__main__":
+    # To-Do: Change the main function to unit tests
     text = (
         "O Brasil é um país de dimensões continentais, com uma área total "
         "de 8.515.767,049 km², sendo o quinto maior país do mundo em área "
@@ -192,7 +230,12 @@ if __name__ == "__main__":
     print(*inputs.keys(), sep=", ")
 
     tokens = text_processor.tokens(inputs)
-    print(tokens[:50])
+    print(tokens[:15])
 
     attentions = text_processor.attention(inputs)
     print(attentions.shape)
+
+    print(sum([1 for tok in tokens if tok.startswith("##")]))
+    tokens, attentions = text_processor.aggregate_tokens(tokens, attentions)
+    print(tokens[:15])
+    print(len(tokens), attentions.shape)
