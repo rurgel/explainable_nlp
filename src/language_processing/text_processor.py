@@ -2,6 +2,8 @@ import itertools
 from typing import List
 
 import nltk
+import torch
+from transformers import AutoTokenizer
 
 
 class TextProcessor:
@@ -10,45 +12,55 @@ class TextProcessor:
 
     Args:
         text (str): The text to be processed.
-        language (str, optional): The language of the text. Defaults to "pt".
+        language (str, optional): The language of the text.
+            Defaults to "pt".
 
     Attributes:
         _text (str): The text to be processed.
-        _language_abbrv (str): The abbreviation of the language of the text.
-        _language_dict (dict): A dictionary mapping language abbreviations
+        _language_abbrv (str): The abbreviation of the text language.
+        _language_dict (dict): Dictionary mapping language abbreviations
             to their corresponding full names.
         _paragraph_lengths (List[int]): A list containing the lengths of
             each paragraph in the text.
 
     Methods:
         split_sentences: Splits the text into a list of sentences.
+        model_tokenizer: Tokenizes the sentences using a pre-trained
+            language model.
         remove_stopwords: Removes stopwords from a list of tokens.
 
     Properties:
         language: Returns the full name of the language of the text.
+        sentences: Returns a list of sentences in the text.
 
     """
 
-    _language_dict = {"pt": "portuguese", "en": "english"}
+    _model_name: str = "setu4993/smaller-LaBSE"
+    _language_dict: dict = {"pt": "portuguese", "en": "english"}
 
     def __init__(self, text: str, *, language: str = "pt") -> None:
         """
         Initialize a TextProcessor object.
 
         Args:
-            text: The text to be processed.
-            language: The language of the text.
+            text (str): The text to be processed.
+            language (str, optional): The language of the text.
+                Defaults to "pt".
+
+        Raises:
+            ValueError: If the input text is empty.
         """
+        if not text:
+            raise ValueError("Input text cannot be empty")
         self._text = text
         self._language_abbrv = language
-        self._paragraph_lengths = []
+        self._split_sentences()
+        self._tokenizer = AutoTokenizer.from_pretrained(self._model_name)
 
-    def split_sentences(self) -> List[str]:
+    def _split_sentences(self) -> None:
         """
-        Split the text into a list of sentences.
-
-        Returns:
-            A list of sentences.
+        Split the text into a list of sentences, and store the list in
+        the _sentences attribute.
         """
         paragraphs = self._text.split("\n")
         sentences = [
@@ -56,15 +68,49 @@ class TextProcessor:
             for paragraph in paragraphs
         ]
         self._paragraph_lengths = [len(snt) for snt in sentences if snt]
+        self._sentences = list(itertools.chain(*sentences))
+        return
 
-        return list(itertools.chain(*sentences))
+    @property
+    def sentences(self) -> List[str]:
+        """
+        Return a list of sentences in the text.
+
+        Returns:
+            A list of sentences in the text.
+        """
+        return self._sentences
+
+    def model_tokenizer(self) -> dict:
+        """
+        Tokenize the sentences using a pre-trained language model.
+
+        Returns:
+            A dictionary containing the input IDs, attention masks,
+            and token type IDs.
+        """
+        inputs = {}
+        for sentence in self.sentences:
+            input = self._tokenizer(
+                sentence,
+                return_tensors="pt",
+                truncation=True,
+                padding=True,
+                max_length=512,
+            )
+            for key, value in input.items():
+                if key in inputs:
+                    inputs[key] = torch.cat((inputs[key], value), dim=1)
+                else:
+                    inputs[key] = value
+        return inputs
 
     def remove_stopwords(self, tokens: List[str]) -> List[str]:
         """
         Remove stopwords from a list of tokens.
 
         Args:
-            tokens: The list of tokens.
+            tokens (List[str]): The list of tokens.
 
         Returns:
             The list of tokens with stopwords removed.
@@ -95,11 +141,22 @@ if __name__ == "__main__":
         "dividido em 26 estados e um distrito federal."
     )
     text_processor = TextProcessor(text)
-    sentences = text_processor.split_sentences()
+
     paragraph_lengths = text_processor._paragraph_lengths
-    for sentence in sentences:
+    for sentence in text_processor.sentences:
         print(sentence)
         paragraph_lengths[0] -= 1
         if paragraph_lengths[0] == 0:
             print("...")
             paragraph_lengths.pop(0)
+
+    print("\n\nModel Tokenizer Output:\n")
+    for i, batch in enumerate(text_processor.model_tokenizer()):
+        print(f"Batch {i+1}: {batch}\n")
+
+    print(
+        "Number of tokens:",
+        len(text_processor.model_tokenizer()["input_ids"][0]),
+    )
+    print("Tokenizer keys:", end=" ")
+    print(*text_processor.model_tokenizer().keys(), sep=", ")
