@@ -33,6 +33,9 @@ class TextProcessor:
         validate_any_alphanumeric: Checks if the tokens alphanumeric.
         aggregate_tokens: Combines split tokens by ## and also
             aggregates the respective attention weights.
+        paragraph_replacer: Replaces the paragraphs in the text with
+            their respective aggregated tokens.
+        combine_token_attention: Combines the tokens and attention
 
     Properties:
         language: Returns the full name of the language of the text.
@@ -42,6 +45,7 @@ class TextProcessor:
 
     _MODEL_NAME: str = "setu4993/smaller-LaBSE"
     _LANGUAGE_DICT: dict = {"pt": "portuguese", "en": "english"}
+    _CONTROL_TOKENS: List[str] = ["[CLS]", "[SEP]"]
 
     def __init__(self, text: str, *, language: str = "pt") -> None:
         """
@@ -201,7 +205,7 @@ class TextProcessor:
 
         Args:
             tokens (List[str]): The list of tokens.
-            attentions (torch.Tensor): The attention weights.
+            attention (torch.Tensor): The attention weights.
 
         Returns:
             A tuple containing the list of tokens with the split tokens
@@ -227,6 +231,54 @@ class TextProcessor:
             # Remove the rows and columns corresponding to split tokens
             attention = attention[:, :, :, pos, :][:, :, :, :, pos]
         return tokens, attention
+
+    @staticmethod
+    def reduce_attention(attention: torch.Tensor) -> torch.Tensor:
+        """
+        Reduce the attention weights to a single value for each
+        token.
+        Args:
+            attention: The attention weights.
+
+        Returns:
+            Total attention weight for each token.
+        """
+        return attention.mean(dim=(0, 1, 2, 3))
+
+    def paragraph_replacer(self, tokens: List[str]) -> List[str]:
+        """
+        Replace the [SEP] tokens that separate paragraphs with a
+        newline character.
+        Args:
+            tokens: The list of tokens.
+
+        Returns:
+            The list of tokens with the [SEP] tokens that separate
+        """
+        tks = np.array(tokens)
+        last_sentences = np.cumsum(self._paragraph_lengths) - 1
+        pos = np.where(np.isin(np.where(tks == "[SEP]")[0], last_sentences))[0]
+        tks[pos] = "\n"
+        return tks.tolist()
+
+    def combine_token_attention(
+        self, tokens: List[str], attention: torch.Tensor,
+    ) -> List[Tuple[str, float]]:
+        """
+        Combine in a zipped list the tokens and the attention weights.
+        Control tokens are removed.
+        Args:
+            tokens: The list of tokens.
+            attention: The attention weights.
+
+        Returns:
+            A list of tuples containing the tokens and the attention
+        """
+        return [
+            (tk, att.cpu().detach().item())
+            for tk, att in zip(tokens, self.reduce_attention(attention))
+            if tk not in self._CONTROL_TOKENS
+        ]
 
 
 if __name__ == "__main__":
