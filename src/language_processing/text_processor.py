@@ -105,6 +105,21 @@ class TextProcessor:
                     inputs[key] = value
         return inputs
 
+
+    def tokens(self, inputs: dict) -> List[str]:
+        """
+        Convert input IDs to tokens using the tokenizer.
+
+        Args:
+            inputs: A dictionary containing the input IDs, attention masks,
+                and token type IDs.
+
+        Returns:
+            A list of tokens corresponding to the input IDs.
+        """
+        return self._tokenizer.convert_ids_to_tokens(
+            inputs["input_ids"].squeeze())
+
     def remove_stopwords(self, tokens: List[str]) -> List[str]:
         """
         Remove stopwords from a list of tokens.
