@@ -3,7 +3,7 @@ from typing import List
 
 import nltk
 import torch
-from transformers import AutoTokenizer
+from transformers import AutoTokenizer, AutoModelForMaskedLM
 
 
 class TextProcessor:
@@ -35,8 +35,8 @@ class TextProcessor:
 
     """
 
-    _model_name: str = "setu4993/smaller-LaBSE"
-    _language_dict: dict = {"pt": "portuguese", "en": "english"}
+    _MODEL_NAME: str = "setu4993/smaller-LaBSE"
+    _LANGUAGE_DICT: dict = {"pt": "portuguese", "en": "english"}
 
     def __init__(self, text: str, *, language: str = "pt") -> None:
         """
@@ -55,7 +55,13 @@ class TextProcessor:
         self._text = text
         self._language_abbrv = language
         self._split_sentences()
-        self._tokenizer = AutoTokenizer.from_pretrained(self._model_name)
+        self._tokenizer = AutoTokenizer.from_pretrained(self._MODEL_NAME)
+        self._model = AutoModelForMaskedLM.from_pretrained(
+            self._MODEL_NAME,
+            output_hidden_states=True,
+            output_attentions=True,
+            return_dict=False,
+        )
 
     def _split_sentences(self) -> None:
         """
@@ -105,20 +111,35 @@ class TextProcessor:
                     inputs[key] = value
         return inputs
 
-
     def tokens(self, inputs: dict) -> List[str]:
         """
         Convert input IDs to tokens using the tokenizer.
 
         Args:
-            inputs: A dictionary containing the input IDs, attention masks,
-                and token type IDs.
+            inputs: A dictionary containing the input IDs, attention
+                masks, and token type IDs.
 
         Returns:
             A list of tokens corresponding to the input IDs.
         """
         return self._tokenizer.convert_ids_to_tokens(
-            inputs["input_ids"].squeeze())
+            inputs["input_ids"].squeeze()
+        )
+
+    def attention(self, inputs: dict) -> torch.Tensor:
+        """
+        Compute the attention weights for each token in the input.
+
+        Args:
+            inputs: A dictionary containing the input IDs, attention
+                masks, and token type IDs.
+
+        Returns:
+            A 5D tensor containing the attention weights with shape
+             (num_layers, batch_size, num_layers, tokens, tokens).
+        """
+        _, _, attentions = self._model(**inputs)
+        return torch.stack(attentions)
 
     def remove_stopwords(self, tokens: List[str]) -> List[str]:
         """
@@ -141,7 +162,7 @@ class TextProcessor:
         Returns:
             The full name of the language of the text.
         """
-        return self._language_dict.get(self._language_abbrv, "portuguese")
+        return self._LANGUAGE_DICT.get(self._language_abbrv, "portuguese")
 
 
 if __name__ == "__main__":
@@ -165,13 +186,13 @@ if __name__ == "__main__":
             print("...")
             paragraph_lengths.pop(0)
 
-    print("\n\nModel Tokenizer Output:\n")
-    for i, batch in enumerate(text_processor.model_tokenizer()):
-        print(f"Batch {i+1}: {batch}\n")
-
-    print(
-        "Number of tokens:",
-        len(text_processor.model_tokenizer()["input_ids"][0]),
-    )
+    inputs = text_processor.model_tokenizer()
+    print("Number of tokens:", len(inputs["input_ids"][0]))
     print("Tokenizer keys:", end=" ")
-    print(*text_processor.model_tokenizer().keys(), sep=", ")
+    print(*inputs.keys(), sep=", ")
+
+    tokens = text_processor.tokens(inputs)
+    print(tokens[:50])
+
+    attentions = text_processor.attention(inputs)
+    print(attentions.shape)
