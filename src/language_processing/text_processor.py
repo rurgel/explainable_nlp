@@ -7,21 +7,22 @@ import nltk
 import torch
 from transformers import AutoTokenizer, AutoModelForMaskedLM
 
+from src.language_processing.text_downloader import WikipediaSummary
 
-class TextProcessor:
+
+class TextProcessor(WikipediaSummary):
     """
     A class for processing text.
 
     Args:
-        text (str): The text to be processed.
-        language (str, optional): The language of the text.
+        keyword (str): Term keyword to search into wikipedia.
+        language (str, optional): Wikipedia Page Language.
             Defaults to "pt".
 
     Attributes:
-        _text (str): The text to be processed.
+        _text (str): The text to be processed. Inherited from the
+            WikipediaTextDownloader class.
         _language_abbrv (str): The abbreviation of the text language.
-        _language_dict (dict): Dictionary mapping language abbreviations
-            to their corresponding full names.
         _paragraph_lengths (List[int]): A list containing the lengths of
             each paragraph in the text.
 
@@ -47,21 +48,26 @@ class TextProcessor:
     _LANGUAGE_DICT: dict = {"pt": "portuguese", "en": "english"}
     _CONTROL_TOKENS: List[str] = ["[CLS]", "[SEP]"]
 
-    def __init__(self, text: str, *, language: str = "pt") -> None:
+    def __init__(
+        self, keyword: str, *, language: str = "pt", **kwargs
+    ) -> None:
         """
         Initialize a TextProcessor object.
 
         Args:
-            text (str): The text to be processed.
-            language (str, optional): The language of the text.
+            keyword (str): Term keyword to search into wikipedia.
+            language (str, optional): Wikipedia Page Language.
                 Defaults to "pt".
 
         Raises:
             ValueError: If the input text is empty.
         """
-        if not text:
-            raise ValueError("Input text cannot be empty")
-        self._text = text
+        if not keyword:
+            raise ValueError("Keyword cannot be empty")
+
+        # Get text from WikipediaTextDownloader
+        super().__init__(keyword, language=language, **kwargs)
+
         self._language_abbrv = language
         self._split_sentences()
         self._tokenizer = AutoTokenizer.from_pretrained(self._MODEL_NAME)
@@ -262,7 +268,9 @@ class TextProcessor:
         return tks.tolist()
 
     def combine_token_attention(
-        self, tokens: List[str], attention: torch.Tensor,
+        self,
+        tokens: List[str],
+        attention: torch.Tensor,
     ) -> List[Tuple[str, float]]:
         """
         Combine in a zipped list the tokens and the attention weights.
@@ -283,17 +291,7 @@ class TextProcessor:
 
 if __name__ == "__main__":
     # To-Do: Change the main function to unit tests
-    text = (
-        "O Brasil é um país de dimensões continentais, com uma área total "
-        "de 8.515.767,049 km², sendo o quinto maior país do mundo em área "
-        "territorial (equivalente a 47% do território sul-americano) e o sexto em "
-        "população (com mais de 210 milhões de habitantes).\nO Brasil é o único "
-        "país do mundo que possui fronteiras com 10 outros países. Ele faz "
-        "fronteira com todos os outros países sul-americanos, exceto Chile e Equador.\n"
-        "A capital do Brasil é Brasília, e a maior cidade é São Paulo. O país é "
-        "dividido em 26 estados e um distrito federal."
-    )
-    text_processor = TextProcessor(text)
+    text_processor = TextProcessor("Python")
 
     paragraph_lengths = text_processor._paragraph_lengths
     for sentence in text_processor.sentences:
