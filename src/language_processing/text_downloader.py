@@ -27,28 +27,38 @@ class WikipediaSummary:
                 Defaults to True.
         """
         wikipedia.set_lang(language)
-
-        try:
-            text = wikipedia.summary(keyword, sentences=0)
-        except wikipedia.exceptions.DisambiguationError as e:
-            # If the page is ambiguous, choose the first listed page
-            keyword = e.options[0]
-            text = wikipedia.summary(keyword, sentences=0)
-        except wikipedia.exceptions.PageError:
-            # If the page does not exist, print an error message
-            print(f"Page not found for {keyword} in {language} Wikipedia.")
-
-        self._keyword = keyword
-        if clean:
-            text = self._remove_references(text)
-            text = self._remove_parenthesis(text)
-        text = self._fix_numbers(text, language)
-        self._text = text
+        self._nsentence = sentences
+        self._language = language
+        self._clean = clean
+        self.keyword = keyword
 
     @property
     def text(self) -> str:
         """Return the text of fetched summary."""
         return self._text
+
+    @property
+    def keyword(self) -> str:
+        """Return the keyword used to fetch the summary."""
+        return self._keyword
+
+    @keyword.setter
+    def keyword(self, kw: str) -> None:
+        try:
+            txt = wikipedia.summary(kw, sentences=self._nsentence)
+        except wikipedia.exceptions.DisambiguationError as e:
+            keyword = e.options[0]
+            txt = wikipedia.summary(keyword, sentences=self._nsentence)
+        except wikipedia.exceptions.PageError:
+            print(f"No WikiPage found for {kw} in {self._language}.")
+            txt = ""
+        self._keyword = kw
+        if self._clean:
+            txt = self._remove_references(txt)
+            txt = self._remove_parenthesis(txt)
+        txt = self._fix_numbers(txt, self._language)
+        self._text = txt
+        return
 
     @staticmethod
     def _remove_references(text: str) -> str:
@@ -84,5 +94,8 @@ class WikipediaSummary:
 
 
 if __name__ == "__main__":
-    ws = WikipediaSummary
+    ws = WikipediaSummary("Python")
+    print(ws, end="\n\n")
+
+    ws.keyword = "Inteligência Artificial"
     print(ws)
