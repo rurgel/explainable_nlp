@@ -1,5 +1,4 @@
-
-from typing import List, Generator, Tuple
+from typing import List, Generator, Tuple, Optional
 from transformers import AutoTokenizer, AutoModelForMaskedLM
 import nltk
 import torch
@@ -8,7 +7,8 @@ import numpy as np
 
 nltk.download("stopwords", quiet=True)
 
-class AttentionModel():
+
+class AttentionModel:
     """
     A class for computing the attention weights of a text.
 
@@ -37,9 +37,8 @@ class AttentionModel():
     """
 
     _MODEL_NAME: str = "setu4993/smaller-LaBSE"
-    _REMOVED_TOKENS: List[str] = ["[CLS]"]
+    _REMOVED_TOKENS: List[str] = ["[CLS]", "[SEP]"]
     _END_SENTENCE: str = "[SEP]"
-
 
     def __init__(self) -> None:
         self._tokenizer = AutoTokenizer.from_pretrained(self._MODEL_NAME)
@@ -176,13 +175,13 @@ class AttentionModel():
             pos = [x for x in range(attention.shape[-1]) if x != idx]
 
             # Get the window of the attention tensor
-            window = attention[:, :, :, st_idx:idx + 1, st_idx:idx + 1]
+            window = attention[:, :, :, st_idx : idx + 1, st_idx : idx + 1]
 
             # Find the maximum value along the window 3rd dimension
             max_vals, _ = torch.max(window, dim=3, keepdim=True)
 
             # Update the window of the attention tensor with max values
-            attention[:, :, :, st_idx:idx + 1, st_idx:idx + 1] = max_vals
+            attention[:, :, :, st_idx : idx + 1, st_idx : idx + 1] = max_vals
 
             # Remove the rows and columns corresponding to split tokens
             attention = attention[:, :, :, pos, :][:, :, :, :, pos]
@@ -205,6 +204,7 @@ class AttentionModel():
         self,
         tokens: List[str],
         attention: torch.Tensor,
+        paragraph_lengths: Optional[List[int]] = None,
     ) -> List[Tuple[str, float]]:
         """
         Combine in a zipped list the tokens and the attention weights.
@@ -212,23 +212,47 @@ class AttentionModel():
         Args:
             tokens: The list of tokens.
             attention: The attention weights.
+            paragraph_lengths: The list of paragraph lengths.
 
         Returns:
             A list of tuples containing the tokens and the attention
         """
         idx = [i for i, s in enumerate(tokens) if s == self._END_SENTENCE]
         attention = self.aggregate_attention(attention)
-        attention[idx] = -1
+        attention[idx] = 0
+        if paragraph_lengths:
+            tokens = self.paragraph_replacer(tokens, paragraph_lengths)
         return [
             (tk, att.cpu().detach().item())
             for tk, att in zip(tokens, attention)
             if tk not in self._REMOVED_TOKENS
         ]
 
+    def paragraph_replacer(
+        self, tokens: List[str], paragraph_lengths: List[str]
+    ) -> List[str]:
+        """
+        Replace the [SEP] tokens that separate paragraphs with a
+        newline character.
+        Args:
+            tokens: The list of tokens.
+            paragraph_lengths: The list of paragraph lengths.
+
+        Returns:
+            The list of tokens with the [SEP] tokens that separate
+        """
+        tks = np.array(tokens)
+        last_sentences = np.cumsum(paragraph_lengths) - 1
+        pos = np.where(tks == self._END_SENTENCE)[0][last_sentences]
+        tks[pos] = "\n"
+        return tks.tolist()
+
     def summarize(
         self,
         sentences: Generator[str, None, None],
+        *,
         language: str,
+        paragraph_lengths: Optional[List[int]] = None,
     ) -> List[Tuple[str, float]]:
         """
         Get the attention weights for each token in the input.
@@ -236,6 +260,7 @@ class AttentionModel():
         Args:
             sentences: A generator of sentences to be tokenized.
             language: The language of the text.
+            paragraph_lengths: The list of paragraph lengths.
 
         Returns:
             A list of tuples containing the tokens and the attention
@@ -245,11 +270,18 @@ class AttentionModel():
         attention = self.attention(inputs)
         tokens = self.tokens(inputs)
         tokens, attention = self.merge_tokens(tokens, attention)
-        return self.combine_token_attention(tokens, attention)
+        ta = self.combine_token_attention(tokens, attention, paragraph_lengths)
+        return ta if ta else [("", 0.0)]
 
 
 if __name__ == "__main__":
     from src.language_processing.text_processor import TextProcessor
+
     text = TextProcessor("Inteligência Artificial")
     attention = AttentionModel()
-    print(*attention.summarize(text.sentences, text.language)[:100], sep="\n")
+    output = attention.summarize(
+        text.sentences,
+        language=text.language,
+        paragraph_lengths=text.paragraph_lengths,
+    )
+    print(*output, sep="\n")
