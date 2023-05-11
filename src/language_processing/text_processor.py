@@ -23,7 +23,7 @@ class TextProcessor(WikipediaSummary):
         _text (str): The text to be processed. Inherited from the
             WikipediaTextDownloader class.
         _language_abbrev (str): The abbreviation of the text language.
-        _paragraph_lengths (List[int]): A list containing the lengths of
+        paragraph_lengths (List[int]): A list containing the lengths of
             each paragraph in the text.
 
     Methods:
@@ -78,7 +78,7 @@ class TextProcessor(WikipediaSummary):
             nltk.sent_tokenize(paragraph, language=self.language)
             for paragraph in paragraphs
         ]
-        self._paragraph_lengths = [len(snt) for snt in sentences if snt]
+        self.paragraph_lengths = [len(snt) for snt in sentences if snt]
         self._sentences = list(itertools.chain(*sentences))
         return
 
