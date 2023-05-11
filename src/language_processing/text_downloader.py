@@ -76,7 +76,9 @@ class WikipediaSummary:
         thousand_separators = {"pt": ".", "en": ","}
         text = re.sub(r"(\d) (\d)", r"\1\2", text)
         text = re.sub(
-            rf"(\d){thousand_separators[language]}(\d)", r"\1\2", text
+            rf"(\d){re.escape(thousand_separators[language])}(\d)",
+            r"\1\2",
+            text
         )
         return text
 
