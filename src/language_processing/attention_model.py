@@ -90,6 +90,10 @@ class AttentionModel:
                     inputs[key] = torch.cat((inputs[key], value), dim=1)
                 else:
                     inputs[key] = value
+        indexes = torch.where(
+            inputs["input_ids"].squeeze() == inputs["input_ids"].squeeze()[-1])
+        size = torch.max(indexes[0][indexes[0] < 512])
+        inputs = {key: value[:, :size+1] for key, value in inputs.items()}
         return inputs
 
     def attention(self, inputs: dict) -> torch.Tensor:
@@ -243,7 +247,9 @@ class AttentionModel:
         """
         tks = np.array(tokens)
         last_sentences = np.cumsum(paragraph_lengths) - 1
-        pos = np.where(tks == self._END_SENTENCE)[0][last_sentences]
+        last_sentences = last_sentences[last_sentences < len(tokens)]
+        pos = np.where(tks == self._END_SENTENCE)[0]
+        pos = pos[last_sentences[last_sentences < len(pos)]]
         tks[pos] = "\n"
         return tks.tolist()
 
