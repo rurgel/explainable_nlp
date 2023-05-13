@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Text Summarizer</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css" />
+</head>
+<body>
+    <main id="mainContent">
+        <div class="container">
+            <h1>
+                {% if language == 'pt' %}
+                    Sumarizador de Textos
+                {% elif language == 'en' %}
+                    Text Summarizer
+                {% endif %}
+            </h1>
+            <h2>
+                {% if language == 'pt' %}
+                    Digite uma palavra chave para buscar um texto no idioma selecionado e resumi-lo.
+                {% elif language == 'en' %}
+                    Please enter a keyword to search for a text in the selected language and summarize it.
+                {% endif %}
+            </h2>
+            <form id="myForm" action="/summary" method="get" class="container" onsubmit="showLoading()">
+                <div class="pill">
+                    <input name="keyword" type="text" id="keyword" name="keyword" value="{{keyword}}" required>
+                    <select id="language" name="language" required>
+                        <option value="pt" {% if language == 'pt' %}selected{% endif %}>Português</option>
+                        <option value="en" {% if language == 'en' %}selected{% endif %}>English</option>
+                    </select>
+                </div>
+                <div class="btn">
+                    <button type="submit" class="button" id="submitButton">
+                        {% if language == 'pt' %}
+                            Resumir
+                        {% elif language == 'en' %}
+                            Summarize
+                        {% endif %}
+                    </button>
+                </div>
+            </form>
+        </div>
+    </main>
+    <div id="loadingMessage" class="loading" hidden>
+        <div class="cnt">
+            <div class="spinner"></div>
+            <div>
+                {% if language == 'pt' %}
+                    Destacando palavras importantes ...
+                {% elif language == 'en' %}
+                    Highlighting important words ...
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    <footer>
+        <div class="footer-name">
+            <p>&copy; 2023 Rafael Gurgel</p>
+        </div>
+        <div class="footer-icons">
+            <a href="mailto:rurgel@rurgel.io"><i class="fa fa-envelope"></i></a>
+            <a href="https://www.linkedin.com/in/rafaelgurgel"><i class="fa fa-linkedin"></i></a>
+            <a href="https://www.github.com/rurgel"><i class="fa fa-github"></i></a>
+        </div>
+    </footer>
+    <script>
+        document.getElementById("keyword").addEventListener("keyup", function(event) {
+            if (event.key === "Enter") {
+                event.preventDefault();
+                document.getElementById("myForm").submit();
+            }
+        });
+        document.getElementById("myForm").addEventListener("submit", function() {
+            document.getElementById("mainContent").classList.add("blurred");
+            document.getElementById("loadingMessage").hidden = false;
+        });
+
+        window.addEventListener("unload", function() {
+            document.getElementById("mainContent").classList.remove("blurred");
+            document.getElementById("loadingMessage").hidden = true;
+        });
+    </script>
+</body>
+</html>
