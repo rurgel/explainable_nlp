@@ -27,7 +27,6 @@ class WikipediaSummary:
                 Defaults to True.
         """
         wikipedia.set_lang(language)
-        self._nsentence = sentences
         self._language = language
         self._clean = clean
         self.keyword = keyword
@@ -45,20 +44,42 @@ class WikipediaSummary:
     @keyword.setter
     def keyword(self, kw: str) -> None:
         try:
-            txt = wikipedia.summary(kw, sentences=self._nsentence)
+            page = wikipedia.page(kw)
+            txt = page.summary
+            url = page.url
+            title = page.title
         except wikipedia.exceptions.DisambiguationError as e:
-            keyword = e.options[0]
-            txt = wikipedia.summary(keyword, sentences=self._nsentence)
+            kw = e.options[0]
+            page = wikipedia.page(kw)
+            txt = page.summary
+            url = page.url
+            title = page.title
         except wikipedia.exceptions.PageError:
-            print(f"No WikiPage found for {kw} in {self._language}.")
-            txt = ""
+            self._txt = ""
+            self._keyword = kw
+            raise ValueError(
+                f"`{kw}` does not match any pages when searching in "
+                "Wikipedia using the selected language."
+            )
         self._keyword = kw
+        self._url = url
+        self._title = title
         if self._clean:
             txt = self._remove_references(txt)
             txt = self._remove_parenthesis(txt)
         txt = self._fix_numbers(txt, self._language)
         self._text = txt
         return
+
+    @property
+    def url(self) -> str:
+        """Return the url used to fetch the summary."""
+        return self._url
+
+    @property
+    def title(self) -> str:
+        """Return the title used to fetch the summary."""
+        return self._title
 
     @staticmethod
     def _remove_references(text: str) -> str:
@@ -78,7 +99,7 @@ class WikipediaSummary:
         text = re.sub(
             rf"(\d){re.escape(thousand_separators[language])}(\d)",
             r"\1\2",
-            text
+            text,
         )
         return text
 
