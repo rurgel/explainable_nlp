@@ -1,12 +1,12 @@
-from typing import List, Generator, Tuple, Optional
-from transformers import AutoTokenizer, AutoModelForMaskedLM
 import nltk
-import torch
-import re
 import numpy as np
+import re
+import torch
+from transformers import AutoTokenizer, AutoModelForMaskedLM
+from typing import List, Generator, Tuple, Optional
+
 
 nltk.download("stopwords", quiet=True)
-
 
 class AttentionModel:
     """

@@ -1,14 +1,11 @@
 import itertools
-from typing import List, Tuple
-
-import re
-import numpy as np
 import nltk
-import torch
-from transformers import AutoTokenizer, AutoModelForMaskedLM
+from typing import List
 
 from src.language_processing.text_downloader import WikipediaSummary
 
+
+nltk.download("punkt", quiet=True)
 
 class TextProcessor(WikipediaSummary):
     """
