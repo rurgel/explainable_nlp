@@ -87,6 +87,7 @@ A seguir serão exibidos alguns exemplos obtidos na utilização da API desenvol
 <img src="docs/images/load.png" alt="Página inicial durante a sumarização do texto." width="400">
 <br><br><br>
 <b>Exemplo de sumarização de um texto em português.</b>
+<br>
 <img src="docs/images/ia.png" alt="Exemplo de sumarização de um texto em português." width="400">
 <br><br><br>
 <b>Outro exemplo com o conteúdo da sumarização de um texto em português.</b>
